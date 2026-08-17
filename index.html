@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Marcus Voss — Full-Stack Developer</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=Fraunces:ital,wght@1,500;1,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          paper: '#FAFAF8',
+          paperAlt: '#F1EFEA',
+          ink: '#0B0B0C',
+          red: {
+            DEFAULT: '#A6141E',
+            bright: '#D11F2C',
+            deep: '#6E0D14'
+          },
+          stone: '#6E6D6A'
+        },
+        fontFamily: {
+          display: ['"Big Shoulders Display"', 'sans-serif'],
+          serifItalic: ['Fraunces', 'serif'],
+          body: ['Inter', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'monospace']
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  html { scroll-behavior: smooth; }
+  body {
+    background: #FAFAF8;
+    font-family: 'Inter', sans-serif;
+    color: #0B0B0C;
+    overflow-x: hidden;
+  }
+  ::selection { background: #A6141E; color: #FAFAF8; }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: #F1EFEA; }
+  ::-webkit-scrollbar-thumb { background: #0B0B0C; border-radius: 0; }
+
+  .heading-line { will-change: transform, clip-path; }
+  .about-heading { clip-path: inset(0 100% 0 0); }
+  .para-3d { transform-style: preserve-3d; perspective: 900px; }
+  .pill { will-change: transform; }
+
+  .noise {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+  }
+
+  .cursor-dot {
+    position: fixed;
+    top: 0; left: 0;
+    width: 8px; height: 8px;
+    background: #A6141E;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    mix-blend-mode: difference;
+    transform: translate(-50%, -50%);
+  }
+
+  @media (max-width: 767px) {
+    .cursor-dot { display: none; }
+  }
+
+  .magnetic-btn { position: relative; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body class="bg-paper text-ink">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useRef, useEffect, useState, useLayoutEffect } = React;
+gsap.registerPlugin(ScrollTrigger);
+
+/* ----------------------------------------------------------------
+   Spider-web decorative SVG — abstract quarter-web, corner-anchored.
+   Purely geometric (spokes + concentric arcs), no copyrighted forms.
+------------------------------------------------------------------ */
+const WebMark = React.forwardRef(function WebMark(
+  { className = '', color = '#0B0B0C', opacity = 1, strokeWidth = 1 },
+  ref
+) {
+  return (
+    <svg
+      ref={ref}
+      viewBox="0 0 220 220"
+      className={className}
+      style={{ opacity }}
+      fill="none"
+    >
+      <g stroke={color} strokeWidth={strokeWidth} vectorEffect="non-scaling-stroke" strokeLinecap="round">
+        <path d="M0,0 L220,0" />
+        <path d="M0,0 L212.5,56.9" />
+        <path d="M0,0 L190.5,110" />
+        <path d="M0,0 L155.6,155.6" />
+        <path d="M0,0 L110,190.5" />
+        <path d="M0,0 L56.9,212.5" />
+        <path d="M0,0 L0,220" />
+        <path d="M50,0 A50,50 0 0 1 0,50" />
+        <path d="M100,0 A100,100 0 0 1 0,100" />
+        <path d="M150,0 A150,150 0 0 1 0,150" />
+        <path d="M200,0 A200,200 0 0 1 0,200" />
+      </g>
+    </svg>
+  );
+});
+
+function drawWeb(svgEl, { delay = 0, duration = 1.6, stagger = 0.035 } = {}) {
+  if (!svgEl) return;
+  const paths = svgEl.querySelectorAll('path');
+  paths.forEach((p) => {
+    const len = p.getTotalLength();
+    gsap.set(p, { strokeDasharray: len, strokeDashoffset: len });
+  });
+  gsap.to(paths, {
+    strokeDashoffset: 0,
+    duration,
+    delay,
+    stagger,
+    ease: 'power2.out'
+  });
+}
+
+/* Tiny spider glyph used in eyebrow labels */
+function SpiderGlyph({ className = '', color = '#A6141E' }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round">
+      <ellipse cx="16" cy="17" rx="4.2" ry="5.4" fill={color} stroke="none" />
+      <circle cx="16" cy="9.5" r="2.6" fill={color} stroke="none" />
+      <path d="M13 14 C8 12, 4 12, 2 9" />
+      <path d="M13 16 C7 16, 3 16.5, 1 17" />
+      <path d="M13 19 C8 21, 5 23, 3 26" />
+      <path d="M13 15 C9 10, 7 7, 5 4" />
+      <path d="M19 14 C24 12, 28 12, 30 9" />
+      <path d="M19 16 C25 16, 29 16.5, 31 17" />
+      <path d="M19 19 C24 21, 27 23, 29 26" />
+      <path d="M19 15 C23 10, 25 7, 27 4" />
+    </svg>
+  );
+}
+
+/* ----------------------------------------------------------------
+   Custom cursor dot
+------------------------------------------------------------------ */
+function CursorDot() {
+  const dotRef = useRef(null);
+  useEffect(() => {
+    const dot = dotRef.current;
+    const move = (e) => {
+      gsap.to(dot, { x: e.clientX, y: e.clientY, duration: 0.35, ease: 'power3.out' });
+    };
+    window.addEventListener('mousemove', move);
+    return () => window.removeEventListener('mousemove', move);
+  }, []);
+  return <div ref={dotRef} className="cursor-dot hidden md:block" />;
+}
+
+/* ----------------------------------------------------------------
+   Nav
+------------------------------------------------------------------ */
+function Nav() {
+  const navRef = useRef(null);
+  useEffect(() => {
+    gsap.fromTo(navRef.current, { y: -40, opacity: 0 }, { y: 0, opacity: 1, duration: 1, ease: 'power3.out', delay: 0.2 });
+  }, []);
+  const links = ['Work', 'About', 'Contact'];
+  return (
+    <header ref={navRef} className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-paper/70 border-b border-ink/10">
+      <div className="max-w-7xl mx-auto px-6 md:px-10 h-16 md:h-20 flex items-center justify-between">
+        <a href="#top" className="flex items-center gap-2.5 group">
+          <SpiderGlyph className="w-5 h-5 transition-transform duration-500 group-hover:rotate-[25deg]" />
+          <span className="font-display font-700 text-lg tracking-wide uppercase">Marcus Voss</span>
+        </a>
+        <nav className="hidden md:flex items-center gap-10 font-mono text-xs uppercase tracking-widest text-stone">
+          {links.map((l) => (
+            <a key={l} href={`#${l.toLowerCase()}`} className="relative py-1 hover:text-ink transition-colors duration-300 group">
+              {l}
+              <span className="absolute left-0 -bottom-0.5 w-0 h-px bg-red group-hover:w-full transition-all duration-300" />
+            </a>
+          ))}
+        </nav>
+        <a href="#contact" className="hidden md:inline-flex items-center gap-2 font-mono text-xs uppercase tracking-widest border border-ink px-4 py-2 hover:bg-ink hover:text-paper transition-colors duration-300">
+          Let's Talk
+        </a>
+      </div>
+    </header>
+  );
+}
+
+/* ----------------------------------------------------------------
+   Magnetic button — subtle interactive motion on hover
+------------------------------------------------------------------ */
+function MagneticButton({ children, href = '#', primary = false }) {
+  const btnRef = useRef(null);
+  const textRef = useRef(null);
+  useEffect(() => {
+    const btn = btnRef.current;
+    const onMove = (e) => {
+      const r = btn.getBoundingClientRect();
+      const x = e.clientX - (r.left + r.width / 2);
+      const y = e.clientY - (r.top + r.height / 2);
+      gsap.to(btn, { x: x * 0.25, y: y * 0.35, duration: 0.5, ease: 'power3.out' });
+      gsap.to(textRef.current, { x: x * 0.12, y: y * 0.18, duration: 0.5, ease: 'power3.out' });
+    };
+    const onLeave = () => {
+      gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1,0.4)' });
+      gsap.to(textRef.current, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1,0.4)' });
+    };
+    btn.addEventListener('mousemove', onMove);
+    btn.addEventListener('mouseleave', onLeave);
+    return () => {
+      btn.removeEventListener('mousemove', onMove);
+      btn.removeEventListener('mouseleave', onLeave);
+    };
+  }, []);
+  return (
+    <a
+      ref={btnRef}
+      href={href}
+      className={`magnetic-btn inline-flex items-center justify-center px-8 py-4 font-mono text-xs uppercase tracking-widest transition-colors duration-300 ${
+        primary
+          ? 'bg-ink text-paper hover:bg-red'
+          : 'border border-ink text-ink hover:border-red hover:text-red'
+      }`}
+    >
+      <span ref={textRef} className="inline-block">{children}</span>
+    </a>
+  );
+}
+
+/* ----------------------------------------------------------------
+   Hero — mouse-following reveal mask between two duotone layers
+------------------------------------------------------------------ */
+function Hero() {
+  const sectionRef = useRef(null);
+  const colorLayerRef = useRef(null);
+  const line1Ref = useRef(null);
+  const line2Ref = useRef(null);
+  const line3Ref = useRef(null);
+  const subRef = useRef(null);
+  const ctaRef = useRef(null);
+  const eyebrowRef = useRef(null);
+  const scrollCueRef = useRef(null);
+  const webTL = useRef(null);
+  const webBR = useRef(null);
+  const pos = useRef({ x: 0, y: 0 });
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
+      tl.fromTo(eyebrowRef.current, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.7 }, 0.1)
+        .fromTo([line1Ref.current, line2Ref.current, line3Ref.current],
+          { clipPath: 'inset(0 0 100% 0)', y: 40 },
+          { clipPath: 'inset(0 0 0% 0)', y: 0, duration: 1.1, stagger: 0.12 }, 0.25)
+        .fromTo(subRef.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8 }, '-=0.5')
+        .fromTo(ctaRef.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8 }, '-=0.55')
+        .fromTo(colorLayerRef.current, { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 1.4 }, 0.2)
+        .fromTo(scrollCueRef.current, { opacity: 0 }, { opacity: 1, duration: 0.8 }, '-=0.3');
+
+      drawWeb(webTL.current, { delay: 0.6, duration: 1.8 });
+      drawWeb(webBR.current, { delay: 0.9, duration: 1.8 });
+
+      gsap.to(scrollCueRef.current.querySelector('.dot'), {
+        y: 10, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1
+      });
+
+      const onMove = (e) => {
+        const r = sectionRef.current.getBoundingClientRect();
+        pos.current.x = e.clientX - r.left;
+        pos.current.y = e.clientY - r.top;
+        gsap.to(colorLayerRef.current, {
+          '--mx': pos.current.x + 'px',
+          '--my': pos.current.y + 'px',
+          duration: 0.6,
+          ease: 'power3.out',
+          overwrite: 'auto'
+        });
+      };
+      sectionRef.current.addEventListener('mousemove', onMove);
+      return () => sectionRef.current.removeEventListener('mousemove', onMove);
+    }, sectionRef);
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section
+      id="top"
+      ref={sectionRef}
+      className="relative min-h-screen w-full overflow-hidden flex items-center bg-paper noise"
+    >
+      {/* grayscale base layer */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute right-0 top-0 h-full w-full md:w-[62%]"
+          style={{
+            background:
+              'radial-gradient(120% 100% at 80% 20%, #3a3a3a 0%, #101010 55%, #050505 100%)',
+            filter: 'grayscale(1) contrast(1.1)'
+          }}
+        />
+      </div>
+
+      {/* color reveal layer, clipped to a circle that follows the cursor */}
+      <div
+        ref={colorLayerRef}
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          '--mx': '70%',
+          '--my': '35%',
+          clipPath: 'circle(150px at var(--mx) var(--my))',
+          WebkitClipPath: 'circle(150px at var(--mx) var(--my))'
+        }}
+      >
+        <div
+          className="absolute right-0 top-0 h-full w-full md:w-[62%]"
+          style={{
+            background:
+              'radial-gradient(120% 100% at 80% 20%, #D11F2C 0%, #6E0D14 55%, #1a0304 100%)'
+          }}
+        />
+      </div>
+
+      {/* web decorations */}
+      <WebMark ref={webTL} color="#0B0B0C" opacity={0.5} className="absolute top-16 left-0 w-40 md:w-56" />
+      <WebMark ref={webBR} color="#FAFAF8" opacity={0.35} className="absolute bottom-0 right-0 w-48 md:w-72 rotate-180" />
+
+      {/* content */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-10 w-full pt-24 md:pt-16">
+        <div ref={eyebrowRef} className="flex items-center gap-2.5 mb-6 font-mono text-xs uppercase tracking-[0.25em] text-red">
+          <SpiderGlyph className="w-4 h-4" color="#A6141E" />
+          Full-Stack Developer — Est. 2016
+        </div>
+
+        <h1 className="font-display font-900 uppercase leading-[0.82] text-[15vw] md:text-[8.2vw] tracking-tight">
+          <span className="block overflow-hidden">
+            <span ref={line1Ref} className="heading-line block">Weaving</span>
+          </span>
+          <span className="block overflow-hidden">
+            <span ref={line2Ref} className="heading-line block text-transparent" style={{ WebkitTextStroke: '1.5px #0B0B0C' }}>Code Into</span>
+          </span>
+          <span className="block overflow-hidden">
+            <span ref={line3Ref} className="heading-line block">Experience</span>
+          </span>
+        </h1>
+
+        <div className="mt-10 md:mt-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <p ref={subRef} className="max-w-md text-stone text-base md:text-lg leading-relaxed">
+            I design and build full-stack products — from the smallest interaction
+            to the system underneath — where every thread connects.
+          </p>
+          <div ref={ctaRef} className="flex flex-wrap gap-4">
+            <MagneticButton href="#work" primary>View Selected Work</MagneticButton>
+            <MagneticButton href="#contact">Say Hello</MagneticButton>
+          </div>
+        </div>
+      </div>
+
+      <div ref={scrollCueRef} className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-0">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-stone">Scroll</span>
+        <div className="w-px h-10 bg-ink/20 relative overflow-hidden">
+          <span className="dot absolute top-0 left-0 w-px h-4 bg-red" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------------------------------------------------------
+   HangingProfile — reusable hanging profile image on a thread.
+   Entrance drops from y:-800 with an elastic settle; once it
+   completes, a separate ambient loop takes over the gentle swing.
+------------------------------------------------------------------ */
+function HangingProfile({ src, alt = 'Profile photo', size = 'clamp(14rem, 30vw, 18rem)', threadClassName = 'h-24 md:h-40' }) {
+  const rootRef = useRef(null);
+  const groupRef = useRef(null);
+  const glowRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      // Entrance — whole hanging object drops into place.
+      gsap.fromTo(groupRef.current,
+        { y: -800, opacity: 0 },
+        {
+          y: 0, opacity: 1, duration: 1.8, ease: 'elastic.out(1, 0.45)',
+          transformOrigin: 'top center',
+          scrollTrigger: { trigger: rootRef.current, start: 'top 80%' },
+          onComplete: () => {
+            // Ambient swing — separate loop, starts only after the entrance settles.
+            gsap.to(groupRef.current, {
+              rotation: 2.5, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1,
+              transformOrigin: 'top center'
+            });
+          }
+        });
+
+      // Breathing glow — runs independently, unrelated to the entrance/swing.
+      gsap.to(glowRef.current, {
+        opacity: 0.6, scale: 1.12, duration: 2.4, ease: 'sine.inOut', yoyo: true, repeat: -1,
+        transformOrigin: 'center center'
+      });
+    }, rootRef);
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <div ref={rootRef} className="flex justify-center md:justify-start">
+      <div ref={groupRef} className="relative flex flex-col items-center">
+        {/* long thin thread, longer on desktop */}
+        <div className={`w-px ${threadClassName} bg-gradient-to-b from-ink/0 to-ink/40`} />
+
+        <div className="relative" style={{ width: size, height: size }}>
+          {/* subtle animated glow */}
+          <div
+            ref={glowRef}
+            className="absolute -inset-6 rounded-full opacity-30 pointer-events-none"
+            style={{ background: 'radial-gradient(circle, rgba(166,20,30,0.55) 0%, rgba(166,20,30,0) 70%)' }}
+          />
+          {/* thick circular accent border */}
+          <div className="absolute -inset-2 rounded-full border-[6px] border-ink shadow-2xl pointer-events-none" />
+
+          <div className="group relative w-full h-full rounded-full overflow-hidden">
+            {src ? (
+              <img
+                src={src}
+                alt={alt}
+                className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 ease-out group-hover:scale-105"
+              />
+            ) : (
+              <React.Fragment>
+                <div
+                  className="absolute inset-0 transition-all duration-700 ease-out grayscale group-hover:grayscale-0 group-hover:scale-105"
+                  style={{ background: 'radial-gradient(120% 120% at 30% 20%, #7a7a7a 0%, #2b2b2b 45%, #0b0b0b 100%)' }}
+                />
+                <div
+                  className="absolute inset-0 mix-blend-multiply opacity-0 group-hover:opacity-100 transition-opacity duration-700"
+                  style={{ background: 'radial-gradient(120% 120% at 30% 20%, #D11F2C 0%, transparent 60%)' }}
+                />
+              </React.Fragment>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------
+   About — suspended thread portrait + web corners + reveals
+------------------------------------------------------------------ */
+const TECH = ['React', 'Node.js', 'TypeScript', 'PostgreSQL', 'GraphQL', 'AWS', 'Docker', 'Next.js', 'Tailwind', 'GSAP'];
+
+function About() {
+  const sectionRef = useRef(null);
+  const headingRef = useRef(null);
+  const eyebrowRef = useRef(null);
+  const paraRefs = useRef([]);
+  const pillsRef = useRef([]);
+  const webTL = useRef(null);
+  const webTR = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      // background webs — low opacity, static draw once in view
+      [webTL.current, webTR.current].forEach((el, i) => {
+        drawWeb(el, { delay: i * 0.2, duration: 1.6 });
+      });
+      ScrollTrigger.batch([webTL.current, webTR.current], {
+        start: 'top 85%',
+        once: true
+      });
+
+      // eyebrow
+      gsap.fromTo(eyebrowRef.current, { opacity: 0, y: 14 },
+        { opacity: 1, y: 0, duration: 0.7, scrollTrigger: { trigger: eyebrowRef.current, start: 'top 85%' } });
+
+      // heading — clip-path reveal
+      gsap.to(headingRef.current, {
+        clipPath: 'inset(0 0% 0 0)',
+        duration: 1.3,
+        ease: 'power4.out',
+        scrollTrigger: { trigger: headingRef.current, start: 'top 82%' }
+      });
+
+      // paragraphs — subtle 3D rotation reveal
+      gsap.fromTo(paraRefs.current,
+        { opacity: 0, rotateX: -35, y: 24, transformOrigin: 'top center' },
+        {
+          opacity: 1, rotateX: 0, y: 0, duration: 1, stagger: 0.18, ease: 'power3.out',
+          scrollTrigger: { trigger: paraRefs.current[0], start: 'top 85%' }
+        });
+
+      // tech pills — staggered scale-in then idle float
+      gsap.fromTo(pillsRef.current,
+        { opacity: 0, scale: 0.4 },
+        {
+          opacity: 1, scale: 1, duration: 0.6, stagger: 0.06, ease: 'back.out(2.2)',
+          scrollTrigger: { trigger: pillsRef.current[0], start: 'top 90%' },
+          onComplete: () => {
+            pillsRef.current.forEach((el, i) => {
+              gsap.to(el, {
+                y: -6, duration: 2 + (i % 4) * 0.3, ease: 'sine.inOut',
+                yoyo: true, repeat: -1, delay: i * 0.12
+              });
+            });
+          }
+        });
+
+    }, sectionRef);
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section id="about" ref={sectionRef} className="relative py-28 md:py-40 bg-paperAlt overflow-hidden">
+      <WebMark ref={webTL} color="#0B0B0C" opacity={0.08} className="absolute -top-4 -left-4 w-56 md:w-80" />
+      <WebMark ref={webTR} color="#0B0B0C" opacity={0.08} className="absolute -top-4 -right-4 w-56 md:w-80 scale-x-[-1]" />
+
+      <div className="max-w-7xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 md:gap-20 items-start relative">
+        {/* left column — suspended portrait */}
+        <div className="pt-6 md:pt-2">
+          <HangingProfile alt="Marcus Voss" />
+        </div>
+
+        {/* right column — copy */}
+        <div>
+          <div ref={eyebrowRef} className="flex items-center gap-2.5 mb-5 font-mono text-xs uppercase tracking-[0.25em] text-red">
+            <SpiderGlyph className="w-4 h-4" color="#A6141E" />
+            About
+          </div>
+
+          <h2 ref={headingRef} className="about-heading font-serifItalic italic uppercase text-4xl md:text-6xl leading-[1.02] tracking-tight mb-8">
+            The developer<br />behind the threads
+          </h2>
+
+          <div className="para-3d space-y-5 max-w-xl">
+            <p ref={(el) => (paraRefs.current[0] = el)} className="text-stone text-base md:text-lg leading-relaxed">
+              I'm Marcus — a full-stack developer who treats every product as a
+              connected system, not a pile of features. Frontend, backend,
+              infrastructure: each thread has to hold weight on its own and support
+              everything attached to it.
+            </p>
+            <p ref={(el) => (paraRefs.current[1] = el)} className="text-stone text-base md:text-lg leading-relaxed">
+              Ten years in, across fintech, media, and early-stage startups, I've
+              learned that the best engineering is the kind nobody notices —
+              it just quietly holds.
+            </p>
+          </div>
+
+          <div className="mt-10 flex flex-wrap gap-3">
+            {TECH.map((t, i) => (
+              <span
+                key={t}
+                ref={(el) => (pillsRef.current[i] = el)}
+                className="pill font-mono text-xs uppercase tracking-wider px-4 py-2 border border-ink/15 bg-paper text-ink/80 hover:border-red hover:text-red transition-colors duration-300"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------------------------------------------------------
+   Work — selected projects
+------------------------------------------------------------------ */
+const PROJECTS = [
+  { name: 'Ledgerline', tag: 'Fintech Platform', desc: 'Real-time ledger reconciliation for multi-currency accounts.', stack: 'React · Node · Postgres' },
+  { name: 'Northwind Studio', tag: 'Creative Agency Site', desc: 'Cinematic marketing site with WebGL transitions.', stack: 'Next.js · GSAP · Three.js' },
+  { name: 'Fieldnote', tag: 'Ops Tooling', desc: 'Offline-first field reporting app for distributed teams.', stack: 'React Native · GraphQL' }
+];
+
+function Work() {
+  const sectionRef = useRef(null);
+  const cardsRef = useRef([]);
+  const headingRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(headingRef.current, { opacity: 0, y: 24 }, {
+        opacity: 1, y: 0, duration: 0.9, ease: 'power3.out',
+        scrollTrigger: { trigger: headingRef.current, start: 'top 85%' }
+      });
+      gsap.fromTo(cardsRef.current, { opacity: 0, y: 60 }, {
+        opacity: 1, y: 0, duration: 0.9, stagger: 0.15, ease: 'power3.out',
+        scrollTrigger: { trigger: cardsRef.current[0], start: 'top 88%' }
+      });
+    }, sectionRef);
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section id="work" ref={sectionRef} className="relative py-28 md:py-40 bg-paper">
+      <div className="max-w-7xl mx-auto px-6 md:px-10">
+        <div ref={headingRef} className="flex items-end justify-between mb-16 gap-6 flex-wrap">
+          <h2 className="font-display font-900 uppercase text-5xl md:text-7xl leading-[0.85] tracking-tight">
+            Selected<br />Work
+          </h2>
+          <p className="font-mono text-xs uppercase tracking-widest text-stone max-w-xs">
+            A few threads worth pulling on — full case studies available on request.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-px bg-ink/10">
+          {PROJECTS.map((p, i) => (
+            <div
+              key={p.name}
+              ref={(el) => (cardsRef.current[i] = el)}
+              className="group relative bg-paper p-8 md:p-10 min-h-[22rem] flex flex-col justify-between overflow-hidden"
+            >
+              <div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                style={{ background: 'radial-gradient(120% 100% at 20% 0%, rgba(166,20,30,0.06) 0%, transparent 60%)' }}
+              />
+              <div className="relative">
+                <span className="font-mono text-[11px] uppercase tracking-widest text-red">{p.tag}</span>
+                <h3 className="font-display font-700 uppercase text-3xl mt-3 mb-4 tracking-tight">{p.name}</h3>
+                <p className="text-stone text-sm leading-relaxed">{p.desc}</p>
+              </div>
+              <div className="relative flex items-center justify-between pt-8 font-mono text-[11px] uppercase tracking-widest text-ink/60">
+                <span>{p.stack}</span>
+                <span className="inline-block transition-transform duration-300 group-hover:translate-x-1">→</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------------------------------------------------------
+   Contact / Footer
+------------------------------------------------------------------ */
+function Contact() {
+  const sectionRef = useRef(null);
+  const headingRef = useRef(null);
+  const webRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(headingRef.current, { opacity: 0, y: 30 }, {
+        opacity: 1, y: 0, duration: 1, ease: 'power3.out',
+        scrollTrigger: { trigger: headingRef.current, start: 'top 85%' }
+      });
+      drawWeb(webRef.current, { delay: 0.2, duration: 1.8 });
+      ScrollTrigger.create({ trigger: webRef.current, start: 'top 90%', once: true });
+    }, sectionRef);
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section id="contact" ref={sectionRef} className="relative bg-ink text-paper py-28 md:py-44 overflow-hidden">
+      <WebMark ref={webRef} color="#FAFAF8" opacity={0.15} className="absolute -bottom-10 -right-10 w-72 md:w-96 rotate-180" />
+      <div className="max-w-7xl mx-auto px-6 md:px-10 relative">
+        <div ref={headingRef}>
+          <div className="flex items-center gap-2.5 mb-6 font-mono text-xs uppercase tracking-[0.25em] text-red">
+            <SpiderGlyph className="w-4 h-4" color="#D11F2C" />
+            Get in touch
+          </div>
+          <h2 className="font-display font-900 uppercase text-[13vw] md:text-[7vw] leading-[0.85] tracking-tight mb-10">
+            Let's build<br />something
+          </h2>
+          <a href="mailto:hello@marcusvoss.dev" className="inline-block font-serifItalic italic text-2xl md:text-4xl border-b border-paper/30 hover:border-red hover:text-red transition-colors duration-300">
+            hello@marcusvoss.dev
+          </a>
+        </div>
+
+        <div className="mt-24 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pt-8 border-t border-paper/10">
+          <span className="font-mono text-xs uppercase tracking-widest text-paper/50">© 2026 Marcus Voss</span>
+          <div className="flex gap-8 font-mono text-xs uppercase tracking-widest text-paper/60">
+            <a href="#" className="hover:text-red transition-colors">GitHub</a>
+            <a href="#" className="hover:text-red transition-colors">LinkedIn</a>
+            <a href="#" className="hover:text-red transition-colors">Twitter</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------------------------------------------------------
+   App
+------------------------------------------------------------------ */
+function App() {
+  useEffect(() => {
+    ScrollTrigger.config({ ignoreMobileResize: true });
+    return () => ScrollTrigger.getAll().forEach((t) => t.kill());
+  }, []);
+
+  return (
+    <React.Fragment>
+      <CursorDot />
+      <Nav />
+      <Hero />
+      <About />
+      <Work />
+      <Contact />
+    </React.Fragment>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
