@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Marcus Voss — Full-Stack Developer</title>
+<title>Tanmay Lipare — Full-Stack Developer</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,7 +56,6 @@
   ::-webkit-scrollbar-thumb { background: #0B0B0C; border-radius: 0; }
 
   .heading-line { will-change: transform, clip-path; }
-  .about-heading { clip-path: inset(0 100% 0 0); }
   .para-3d { transform-style: preserve-3d; perspective: 900px; }
   .pill { will-change: transform; }
 
@@ -91,7 +90,7 @@
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
-const { useRef, useEffect, useState, useLayoutEffect } = React;
+const { useRef, useEffect, useState, useLayoutEffect, useImperativeHandle } = React;
 gsap.registerPlugin(ScrollTrigger);
 
 /* ----------------------------------------------------------------
@@ -191,7 +190,7 @@ function Nav() {
       <div className="max-w-7xl mx-auto px-6 md:px-10 h-16 md:h-20 flex items-center justify-between">
         <a href="#top" className="flex items-center gap-2.5 group">
           <SpiderGlyph className="w-5 h-5 transition-transform duration-500 group-hover:rotate-[25deg]" />
-          <span className="font-display font-700 text-lg tracking-wide uppercase">Marcus Voss</span>
+          <span className="font-display font-700 text-lg tracking-wide uppercase">Tanmay Lipare</span>
         </a>
         <nav className="hidden md:flex items-center gap-10 font-mono text-xs uppercase tracking-widest text-stone">
           {links.map((l) => (
@@ -389,56 +388,60 @@ function Hero() {
 
 /* ----------------------------------------------------------------
    HangingProfile — reusable hanging profile image on a thread.
-   Entrance drops from y:-800 with an elastic settle; once it
-   completes, a separate ambient loop takes over the gentle swing.
+   The entrance itself is owned by the PARENT's master timeline
+   (via getGroupEl(), so it can be sequenced alongside everything
+   else in one coordinated ScrollTrigger). This component still
+   owns its own ambient loop — swing + frame shadow pulse — which
+   the parent starts once the whole entrance sequence has settled.
 ------------------------------------------------------------------ */
-function HangingProfile({ src, alt = 'Profile photo', size = 'clamp(14rem, 30vw, 18rem)', threadClassName = 'h-24 md:h-40' }) {
-  const rootRef = useRef(null);
+const HangingProfile = React.forwardRef(function HangingProfile(
+  { src, alt = 'Profile photo', size = 'clamp(14rem, 30vw, 18rem)', threadClassName = 'h-24 md:h-40' },
+  ref
+) {
   const groupRef = useRef(null);
-  const glowRef = useRef(null);
+  const borderRef = useRef(null);
+  const gsapCtxRef = useRef(null);
 
   useLayoutEffect(() => {
-    const ctx = gsap.context(() => {
-      // Entrance — whole hanging object drops into place.
-      gsap.fromTo(groupRef.current,
-        { y: -800, opacity: 0 },
-        {
-          y: 0, opacity: 1, duration: 1.8, ease: 'elastic.out(1, 0.45)',
-          transformOrigin: 'top center',
-          scrollTrigger: { trigger: rootRef.current, start: 'top 80%' },
-          onComplete: () => {
-            // Ambient swing — separate loop, starts only after the entrance settles.
-            gsap.to(groupRef.current, {
-              rotation: 2.5, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1,
-              transformOrigin: 'top center'
-            });
-          }
-        });
-
-      // Breathing glow — runs independently, unrelated to the entrance/swing.
-      gsap.to(glowRef.current, {
-        opacity: 0.6, scale: 1.12, duration: 2.4, ease: 'sine.inOut', yoyo: true, repeat: -1,
-        transformOrigin: 'center center'
+    const ctx = gsap.context((self) => {
+      // Hidden starting state — parent's timeline animates this element in.
+      gsap.set(groupRef.current, { y: -800, opacity: 0, transformOrigin: 'top center' });
+      gsap.set(borderRef.current, {
+        boxShadow: '0 10px 30px rgba(0,0,0,0.25), 0 0 0px 0px rgba(166,20,30,0)'
       });
-    }, rootRef);
+
+      // Registered (not run yet) so tweens created later are still tracked for cleanup.
+      self.add('startAmbient', () => {
+        gsap.to(groupRef.current, {
+          rotation: 2.5, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1,
+          transformOrigin: 'top center'
+        });
+        gsap.to(borderRef.current, {
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25), 0 0 46px 14px rgba(166,20,30,0.45)',
+          duration: 2.4, ease: 'sine.inOut', yoyo: true, repeat: -1
+        });
+      });
+    }, groupRef);
+    gsapCtxRef.current = ctx;
     return () => ctx.revert();
   }, []);
 
+  useImperativeHandle(ref, () => ({
+    getGroupEl: () => groupRef.current,
+    startAmbient: () => {
+      if (gsapCtxRef.current) gsapCtxRef.current.startAmbient();
+    }
+  }));
+
   return (
-    <div ref={rootRef} className="flex justify-center md:justify-start">
+    <div className="flex justify-center md:justify-start">
       <div ref={groupRef} className="relative flex flex-col items-center">
         {/* long thin thread, longer on desktop */}
         <div className={`w-px ${threadClassName} bg-gradient-to-b from-ink/0 to-ink/40`} />
 
         <div className="relative" style={{ width: size, height: size }}>
-          {/* subtle animated glow */}
-          <div
-            ref={glowRef}
-            className="absolute -inset-6 rounded-full opacity-30 pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(166,20,30,0.55) 0%, rgba(166,20,30,0) 70%)' }}
-          />
-          {/* thick circular accent border */}
-          <div className="absolute -inset-2 rounded-full border-[6px] border-ink shadow-2xl pointer-events-none" />
+          {/* thick circular accent border — also carries the pulsing shadow */}
+          <div ref={borderRef} className="absolute -inset-2 rounded-full border-[6px] border-ink pointer-events-none" />
 
           <div className="group relative w-full h-full rounded-full overflow-hidden">
             {src ? (
@@ -464,7 +467,7 @@ function HangingProfile({ src, alt = 'Profile photo', size = 'clamp(14rem, 30vw,
       </div>
     </div>
   );
-}
+});
 
 /* ----------------------------------------------------------------
    About — suspended thread portrait + web corners + reveals
@@ -479,54 +482,88 @@ function About() {
   const pillsRef = useRef([]);
   const webTL = useRef(null);
   const webTR = useRef(null);
+  const hangingRef = useRef(null);
 
+  /* -----------------------------------------------------------
+     One orchestrated ScrollTrigger'd timeline drives the whole
+     entrance in sequence (with slight overlaps for a premium
+     feel rather than a rigid step-by-step demo). Once it fully
+     resolves, every ambient loop — web sway, profile swing,
+     frame shadow pulse, pill float — starts together in one beat.
+  ------------------------------------------------------------ */
   useLayoutEffect(() => {
-    const ctx = gsap.context(() => {
-      // background webs — low opacity, static draw once in view
-      [webTL.current, webTR.current].forEach((el, i) => {
-        drawWeb(el, { delay: i * 0.2, duration: 1.6 });
-      });
-      ScrollTrigger.batch([webTL.current, webTR.current], {
-        start: 'top 85%',
-        once: true
-      });
+    const ctx = gsap.context((self) => {
+      const webs = [webTL.current, webTR.current];
+      const hangingEl = hangingRef.current ? hangingRef.current.getGroupEl() : null;
 
-      // eyebrow
-      gsap.fromTo(eyebrowRef.current, { opacity: 0, y: 14 },
-        { opacity: 1, y: 0, duration: 0.7, scrollTrigger: { trigger: eyebrowRef.current, start: 'top 85%' } });
+      // Responsive-friendly starting values, set synchronously so nothing flashes in.
+      gsap.set(webs, { y: -110, opacity: 0 });
+      gsap.set(eyebrowRef.current, { opacity: 0, x: -48, clipPath: 'inset(0 100% 0 0)' });
+      gsap.set(headingRef.current, { clipPath: 'inset(0 0 100% 0)', y: 56 });
+      gsap.set(paraRefs.current, { opacity: 0, rotateX: -35, y: 24, transformOrigin: 'top center' });
+      gsap.set(pillsRef.current, { opacity: 0, scale: 0.5 });
 
-      // heading — clip-path reveal
-      gsap.to(headingRef.current, {
-        clipPath: 'inset(0 0% 0 0)',
-        duration: 1.3,
-        ease: 'power4.out',
-        scrollTrigger: { trigger: headingRef.current, start: 'top 82%' }
-      });
-
-      // paragraphs — subtle 3D rotation reveal
-      gsap.fromTo(paraRefs.current,
-        { opacity: 0, rotateX: -35, y: 24, transformOrigin: 'top center' },
-        {
-          opacity: 1, rotateX: 0, y: 0, duration: 1, stagger: 0.18, ease: 'power3.out',
-          scrollTrigger: { trigger: paraRefs.current[0], start: 'top 85%' }
+      // Ambient loops, registered now (so later-created tweens still get cleaned
+      // up by ctx.revert()) but not started until the entrance has fully settled.
+      const startAmbient = self.add('startAmbient', () => {
+        webs.forEach((el, i) => {
+          gsap.to(el, {
+            rotation: i === 0 ? 4 : -4,
+            duration: 7 + i * 1.4,
+            ease: 'sine.inOut',
+            yoyo: true,
+            repeat: -1,
+            transformOrigin: i === 0 ? '0% 0%' : '100% 0%'
+          });
         });
-
-      // tech pills — staggered scale-in then idle float
-      gsap.fromTo(pillsRef.current,
-        { opacity: 0, scale: 0.4 },
-        {
-          opacity: 1, scale: 1, duration: 0.6, stagger: 0.06, ease: 'back.out(2.2)',
-          scrollTrigger: { trigger: pillsRef.current[0], start: 'top 90%' },
-          onComplete: () => {
-            pillsRef.current.forEach((el, i) => {
-              gsap.to(el, {
-                y: -6, duration: 2 + (i % 4) * 0.3, ease: 'sine.inOut',
-                yoyo: true, repeat: -1, delay: i * 0.12
-              });
-            });
-          }
+        pillsRef.current.forEach((el, i) => {
+          gsap.to(el, {
+            y: -6,
+            duration: 2 + (i % 4) * 0.3,
+            ease: 'sine.inOut',
+            yoyo: true,
+            repeat: -1,
+            delay: i * 0.12
+          });
         });
+        if (hangingRef.current) hangingRef.current.startAmbient();
+      });
 
+      const tl = gsap.timeline({
+        scrollTrigger: { trigger: sectionRef.current, start: 'top 75%' },
+        defaults: { ease: 'power4.out' },
+        onComplete: startAmbient
+      });
+
+      // 1. Background webs drop from above, elastic settle.
+      tl.to(webs, {
+        y: 0, opacity: 0.08, duration: 1.3, ease: 'elastic.out(1, 0.65)', stagger: 0.15
+      })
+        // 2. Eyebrow slides in from the left with a clip-path reveal.
+        .to(eyebrowRef.current, {
+          opacity: 1, x: 0, clipPath: 'inset(0 0% 0 0)', duration: 0.8, ease: 'power3.out'
+        }, '-=0.7')
+        // 3. Heading rises from below with a clip-path reveal.
+        .to(headingRef.current, {
+          clipPath: 'inset(0 0% 0 0)', y: 0, duration: 1.1, ease: 'power4.out'
+        }, '-=0.45');
+
+      // 4. Hanging profile image drops from the ceiling, in step with the heading.
+      if (hangingEl) {
+        tl.to(hangingEl, {
+          y: 0, opacity: 1, duration: 1.7, ease: 'elastic.out(1, 0.5)'
+        }, '-=0.75');
+      }
+
+      tl
+        // 5. Paragraphs reveal individually with rotationX and stagger.
+        .to(paraRefs.current, {
+          opacity: 1, rotateX: 0, y: 0, duration: 0.9, stagger: 0.16, ease: 'power3.out'
+        }, '-=1')
+        // 6. Technology pills scale from 0.5 to 1 with stagger.
+        .to(pillsRef.current, {
+          opacity: 1, scale: 1, duration: 0.55, stagger: 0.055, ease: 'back.out(2.2)'
+        }, '-=0.5');
     }, sectionRef);
     return () => ctx.revert();
   }, []);
@@ -539,7 +576,7 @@ function About() {
       <div className="max-w-7xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 md:gap-20 items-start relative">
         {/* left column — suspended portrait */}
         <div className="pt-6 md:pt-2">
-          <HangingProfile alt="Marcus Voss" />
+          <HangingProfile ref={hangingRef} alt="Tanmay Lipare" />
         </div>
 
         {/* right column — copy */}
@@ -549,13 +586,13 @@ function About() {
             About
           </div>
 
-          <h2 ref={headingRef} className="about-heading font-serifItalic italic uppercase text-4xl md:text-6xl leading-[1.02] tracking-tight mb-8">
+          <h2 ref={headingRef} className="font-serifItalic italic uppercase text-4xl md:text-6xl leading-[1.02] tracking-tight mb-8">
             The developer<br />behind the threads
           </h2>
 
           <div className="para-3d space-y-5 max-w-xl">
             <p ref={(el) => (paraRefs.current[0] = el)} className="text-stone text-base md:text-lg leading-relaxed">
-              I'm Marcus — a full-stack developer who treats every product as a
+              I'm Tanmay — a full-stack developer who treats every product as a
               connected system, not a pile of features. Frontend, backend,
               infrastructure: each thread has to hold weight on its own and support
               everything attached to it.
@@ -684,13 +721,13 @@ function Contact() {
           <h2 className="font-display font-900 uppercase text-[13vw] md:text-[7vw] leading-[0.85] tracking-tight mb-10">
             Let's build<br />something
           </h2>
-          <a href="mailto:hello@marcusvoss.dev" className="inline-block font-serifItalic italic text-2xl md:text-4xl border-b border-paper/30 hover:border-red hover:text-red transition-colors duration-300">
-            hello@marcusvoss.dev
+          <a href="mailto:liparetanmay@official@gmail.com" className="inline-block font-serifItalic italic text-2xl md:text-4xl border-b border-paper/30 hover:border-red hover:text-red transition-colors duration-300">
+            liparetanmay@official@gmail.com
           </a>
         </div>
 
         <div className="mt-24 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pt-8 border-t border-paper/10">
-          <span className="font-mono text-xs uppercase tracking-widest text-paper/50">© 2026 Marcus Voss</span>
+          <span className="font-mono text-xs uppercase tracking-widest text-paper/50">© 2026 Tanmay Lipare</span>
           <div className="flex gap-8 font-mono text-xs uppercase tracking-widest text-paper/60">
             <a href="#" className="hover:text-red transition-colors">GitHub</a>
             <a href="#" className="hover:text-red transition-colors">LinkedIn</a>
