@@ -49,14 +49,21 @@
     font-family: 'Inter', sans-serif;
     color: #0B0B0C;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   ::selection { background: #A6141E; color: #FAFAF8; }
   ::-webkit-scrollbar { width: 10px; }
   ::-webkit-scrollbar-track { background: #F1EFEA; }
   ::-webkit-scrollbar-thumb { background: #0B0B0C; border-radius: 0; }
 
+  a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid #A6141E;
+    outline-offset: 3px;
+  }
+
   .heading-line { will-change: transform, clip-path; }
-  .para-3d { transform-style: preserve-3d; perspective: 900px; }
+  .para-3d { transform-style: preserve-3d; perspective: 1100px; }
   .pill { will-change: transform; }
 
   .noise {
@@ -77,9 +84,26 @@
 
   @media (max-width: 767px) {
     .cursor-dot { display: none; }
+    #photo-stack{
+        display: none;
+    }
   }
 
   .magnetic-btn { position: relative; }
+
+  .underline-hover {
+    position: relative;
+  }
+  .underline-hover::after {
+    content: '';
+    position: absolute;
+    left: 0; bottom: -2px;
+    width: 0;
+    height: 1px;
+    background: currentColor;
+    transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .underline-hover:hover::after { width: 100%; }
 
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
@@ -92,6 +116,26 @@
 <script type="text/babel" data-presets="react">
 const { useRef, useEffect, useState, useLayoutEffect, useImperativeHandle } = React;
 gsap.registerPlugin(ScrollTrigger);
+
+/* ----------------------------------------------------------------
+   Shared motion vocabulary — every animation in this file draws
+   from this small set, so the whole site reads as one deliberate
+   hand rather than a pile of one-off tweaks.
+
+   reveal   — decisive, editorial entrance for text/shapes (no bounce)
+   settle   — soft deceleration for things fading/scaling into frame
+   drop     — for objects with real implied mass (hanging, falling);
+              used sparingly — this is the only curve allowed to overshoot
+   ambient  — slow, continuous, physically idle motion
+   hover    — fast, crisp, no-bounce feedback for interactive elements
+------------------------------------------------------------------ */
+const EASE = {
+  reveal: 'power4.out',
+  settle: 'expo.out',
+  drop: 'elastic.out(1, 0.6)',
+  ambient: 'sine.inOut',
+  hover: 'power2.out'
+};
 
 /* ----------------------------------------------------------------
    Spider-web decorative SVG — abstract quarter-web, corner-anchored.
@@ -138,7 +182,7 @@ function drawWeb(svgEl, { delay = 0, duration = 1.6, stagger = 0.035 } = {}) {
     duration,
     delay,
     stagger,
-    ease: 'power2.out'
+    ease: EASE.reveal
   });
 }
 
@@ -161,19 +205,37 @@ function SpiderGlyph({ className = '', color = '#A6141E' }) {
 }
 
 /* ----------------------------------------------------------------
-   Custom cursor dot
+   Custom cursor dot — subtle hover feedback only over things that
+   are actually interactive, not the whole page.
 ------------------------------------------------------------------ */
 function CursorDot() {
   const dotRef = useRef(null);
   useEffect(() => {
     const dot = dotRef.current;
     const move = (e) => {
-      gsap.to(dot, { x: e.clientX, y: e.clientY, duration: 0.35, ease: 'power3.out' });
+      gsap.to(dot, { x: e.clientX, y: e.clientY, duration: 0.35, ease: EASE.hover });
+    };
+    const onOver = (e) => {
+      if (e.target.closest('a, button, .pill, .cursor-target')) {
+        gsap.to(dot, { scale: 2, duration: 0.3, ease: EASE.hover });
+      }
+    };
+    const onOut = (e) => {
+      if (e.target.closest('a, button, .pill, .cursor-target')) {
+        gsap.to(dot, { scale: 1, duration: 0.3, ease: EASE.hover });
+      }
     };
     window.addEventListener('mousemove', move);
-    return () => window.removeEventListener('mousemove', move);
+    window.addEventListener('mouseover', onOver);
+    window.addEventListener('mouseout', onOut);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseover', onOver);
+      window.removeEventListener('mouseout', onOut);
+    };
   }, []);
-  return <div ref={dotRef} className="cursor-dot hidden md:block" />;
+  return <div/>
+  /* <div ref={dotRef} className="cursor-dot hidden md:block" />; */
 }
 
 /* ----------------------------------------------------------------
@@ -182,25 +244,27 @@ function CursorDot() {
 function Nav() {
   const navRef = useRef(null);
   useEffect(() => {
-    gsap.fromTo(navRef.current, { y: -40, opacity: 0 }, { y: 0, opacity: 1, duration: 1, ease: 'power3.out', delay: 0.2 });
+    gsap.fromTo(navRef.current, { y: -32, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: EASE.reveal, delay: 0.15 });
   }, []);
   const links = ['Work', 'About', 'Contact'];
   return (
     <header ref={navRef} className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-paper/70 border-b border-ink/10">
       <div className="max-w-7xl mx-auto px-6 md:px-10 h-16 md:h-20 flex items-center justify-between">
         <a href="#top" className="flex items-center gap-2.5 group">
-          <SpiderGlyph className="w-5 h-5 transition-transform duration-500 group-hover:rotate-[25deg]" />
+          <SpiderGlyph className="w-5 h-5 transition-transform duration-500 ease-out group-hover:rotate-[20deg]" />
           <span className="font-display font-700 text-lg tracking-wide uppercase">Tanmay Lipare</span>
         </a>
         <nav className="hidden md:flex items-center gap-10 font-mono text-xs uppercase tracking-widest text-stone">
           {links.map((l) => (
-            <a key={l} href={`#${l.toLowerCase()}`} className="relative py-1 hover:text-ink transition-colors duration-300 group">
+            <a key={l} href={`#${l.toLowerCase()}`} className="underline-hover py-1 hover:text-ink transition-colors duration-300 ease-out">
               {l}
-              <span className="absolute left-0 -bottom-0.5 w-0 h-px bg-red group-hover:w-full transition-all duration-300" />
             </a>
           ))}
         </nav>
-        <a href="#contact" className="hidden md:inline-flex items-center gap-2 font-mono text-xs uppercase tracking-widest border border-ink px-4 py-2 hover:bg-ink hover:text-paper transition-colors duration-300">
+        <a
+          href="#contact"
+          className="hidden md:inline-flex items-center gap-2 font-mono text-xs uppercase tracking-widest border border-ink px-4 py-2 transition-all duration-300 ease-out hover:bg-ink hover:text-paper hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(11,11,12,0.14)]"
+        >
           Let's Talk
         </a>
       </div>
@@ -209,36 +273,49 @@ function Nav() {
 }
 
 /* ----------------------------------------------------------------
-   Magnetic button — subtle interactive motion on hover
+   Magnetic button — restrained pull, crisp release (no bounce),
+   soft lift + shadow expansion as the actual hover feedback.
 ------------------------------------------------------------------ */
 function MagneticButton({ children, href = '#', primary = false }) {
   const btnRef = useRef(null);
   const textRef = useRef(null);
   useEffect(() => {
     const btn = btnRef.current;
+    const baseShadow = '0 0px 0px rgba(11,11,12,0)';
+    const hoverShadow = primary
+      ? '0 16px 30px rgba(166,20,30,0.22)'
+      : '0 16px 30px rgba(11,11,12,0.14)';
+
+    const onEnter = () => {
+      gsap.to(btn, { boxShadow: hoverShadow, duration: 0.3, ease: EASE.hover, overwrite: 'auto' });
+    };
     const onMove = (e) => {
       const r = btn.getBoundingClientRect();
       const x = e.clientX - (r.left + r.width / 2);
       const y = e.clientY - (r.top + r.height / 2);
-      gsap.to(btn, { x: x * 0.25, y: y * 0.35, duration: 0.5, ease: 'power3.out' });
-      gsap.to(textRef.current, { x: x * 0.12, y: y * 0.18, duration: 0.5, ease: 'power3.out' });
+      // Small pull + a constant -3px lift while hovered — restrained, not "gamey" magnetism.
+      gsap.to(btn, { x: x * 0.12, y: y * 0.16 - 3, duration: 0.45, ease: EASE.hover });
+      gsap.to(textRef.current, { x: x * 0.06, y: y * 0.08, duration: 0.45, ease: EASE.hover });
     };
     const onLeave = () => {
-      gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1,0.4)' });
-      gsap.to(textRef.current, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1,0.4)' });
+      gsap.to(btn, { x: 0, y: 0, boxShadow: baseShadow, duration: 0.45, ease: EASE.hover });
+      gsap.to(textRef.current, { x: 0, y: 0, duration: 0.45, ease: EASE.hover });
     };
+    btn.addEventListener('mouseenter', onEnter);
     btn.addEventListener('mousemove', onMove);
     btn.addEventListener('mouseleave', onLeave);
     return () => {
+      btn.removeEventListener('mouseenter', onEnter);
       btn.removeEventListener('mousemove', onMove);
       btn.removeEventListener('mouseleave', onLeave);
     };
-  }, []);
+  }, [primary]);
   return (
     <a
       ref={btnRef}
       href={href}
-      className={`magnetic-btn inline-flex items-center justify-center px-8 py-4 font-mono text-xs uppercase tracking-widest transition-colors duration-300 ${
+      style={{ boxShadow: '0 0px 0px rgba(11,11,12,0)' }}
+      className={`magnetic-btn cursor-target inline-flex items-center justify-center px-8 py-4 font-mono text-xs uppercase tracking-widest transition-colors duration-300 ${
         primary
           ? 'bg-ink text-paper hover:bg-red'
           : 'border border-ink text-ink hover:border-red hover:text-red'
@@ -253,25 +330,30 @@ function MagneticButton({ children, href = '#', primary = false }) {
    Hero — mouse-following punch-hole reveal between two real photos.
    Base layer (always visible): developer photo.
    Top layer (covers everything): superhero photo, masked with a
-   radial-gradient "hole" that follows the cursor. Both images share
-   one geometry (HERO_IMAGE_FRAME) so they stay perfectly aligned —
-   the frame is now a proportioned box, not a full-bleed fill.
+   soft-edged radial-gradient hole that follows the cursor. Both
+   photos share one geometry (HERO_IMAGE_FRAME) so they stay aligned,
+   and both live inside one wrapper (photoStackRef) so the idle
+   "breathing" scale animates them as a single physical object
+   instead of drifting independently.
 ------------------------------------------------------------------ */
 
 // Swap these for your actual assets.
-const DEVELOPER_PHOTO_SRC = '/assets/developer-photo.jpeg';
-const SUPERHERO_PHOTO_SRC = '/assets/superhero-photo.jpg';
+const DEVELOPER_PHOTO_SRC = '/assets/developer-photo.png';
+const SUPERHERO_PHOTO_SRC = '/assets/superhero-photo.png';
 
 // Shared frame geometry — both images MUST use the exact same classes,
 // or the mask on the top layer won't line up with the photo underneath.
 const HERO_IMAGE_FRAME =
-  'absolute top-1/2 right-[2%] md:right-[3%] -translate-y-1/2 ' +
+  'absolute top-1/2 right-[4%] md:right-[6%] -translate-y-1/2 ' +
   'w-[72%] sm:w-[58%] md:w-[38%] lg:w-[32%] ' +
-  'aspect-[4/5] object-cover rounded-sm shadow-2xl';
+  'aspect-[4/5] object-cover rounded-sm ' +
+  'shadow-[0_30px_60px_-15px_rgba(11,11,12,0.35)]';
 
 function Hero() {
   const sectionRef = useRef(null);
-  const maskLayerRef = useRef(null); // superhero layer, holds the punch-hole mask
+  const photoStackRef = useRef(null); // wraps both photo layers — carries idle breathing scale
+  const maskLayerRef = useRef(null);  // superhero layer, holds the punch-hole mask
+  const contentRef = useRef(null);
   const line1Ref = useRef(null);
   const line2Ref = useRef(null);
   const line3Ref = useRef(null);
@@ -284,30 +366,39 @@ function Hero() {
   const pos = useRef({ x: 0, y: 0 });
 
   useLayoutEffect(() => {
-    const ctx = gsap.context(() => {
-      const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
-      tl.fromTo(eyebrowRef.current, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.7 }, 0.1)
+    const ctx = gsap.context((self) => {
+      const tl = gsap.timeline({ defaults: { ease: EASE.reveal } });
+      tl.fromTo(eyebrowRef.current, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6 }, 0.1)
         .fromTo([line1Ref.current, line2Ref.current, line3Ref.current],
-          { clipPath: 'inset(0 0 100% 0)', y: 40 },
-          { clipPath: 'inset(0 0 0% 0)', y: 0, duration: 1.1, stagger: 0.12 }, 0.25)
-        .fromTo(subRef.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8 }, '-=0.5')
-        .fromTo(ctaRef.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8 }, '-=0.55')
-        // Superhero layer fades/settles into place over the developer photo.
-        .fromTo(maskLayerRef.current, { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 1.4 }, 0.2)
-        // The reveal hole itself grows in smoothly, radius 0 → full — this is
-        // the "smooth reveal animation" piece, separate from the cursor-follow.
-        .fromTo(maskLayerRef.current, { '--r': '0px' }, { '--r': '100px', duration: 1.3, ease: 'expo.out' }, '-=0.9')
-        .fromTo(scrollCueRef.current, { opacity: 0 }, { opacity: 1, duration: 0.8 }, '-=0.3');
+          { clipPath: 'inset(0 0 100% 0)', y: 36 },
+          { clipPath: 'inset(0 0 0% 0)', y: 0, duration: 0.95, stagger: 0.1 }, 0.22)
+        .fromTo(subRef.current, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.7 }, '-=0.5')
+        .fromTo(ctaRef.current, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.7 }, '-=0.55')
+        // Superhero layer settles into place over the developer photo.
+        .fromTo(maskLayerRef.current, { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 1.2, ease: EASE.settle }, 0.3)
+        // The hole opens once the cover is mostly visible — reads as
+        // "cover appears, then reveals," not two things happening at once.
+        .fromTo(maskLayerRef.current, { '--r': '0px' }, { '--r': '150px', duration: 1.2, ease: EASE.settle }, '-=0.6')
+        .fromTo(scrollCueRef.current, { opacity: 0 }, { opacity: 1, duration: 0.7 }, '-=0.3');
 
-      drawWeb(webTL.current, { delay: 0.6, duration: 1.8 });
-      drawWeb(webBR.current, { delay: 0.9, duration: 1.8 });
+      drawWeb(webTL.current, { delay: 0.55, duration: 1.6 });
+      drawWeb(webBR.current, { delay: 0.8, duration: 1.6 });
 
-      gsap.to(scrollCueRef.current.querySelector('.dot'), {
-        y: 10, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1
+      // Ambient — scroll cue and a barely-there breathing scale on the photo
+      // stack, so the hero has quiet life even before anyone moves the mouse.
+      const startAmbient = self.add('startAmbient', () => {
+        gsap.to(scrollCueRef.current.querySelector('.dot'), {
+          y: 8, duration: 1.3, ease: EASE.ambient, yoyo: true, repeat: -1
+        });
+        gsap.to(photoStackRef.current, {
+          scale: 1.012, duration: 5, ease: EASE.ambient, yoyo: true, repeat: -1
+        });
       });
+      tl.call(startAmbient, null, '-=0.2');
 
-      // Cursor only repositions the hole (--mx/--my); the radius (--r) stays
-      // at whatever the entrance settled it to.
+      // Cursor repositions the hole (--mx/--my) precisely; a very subtle,
+      // opposite-direction parallax on the corner webs adds depth without
+      // ever touching the photo (which must stay pixel-accurate for the mask).
       const onMove = (e) => {
         const r = sectionRef.current.getBoundingClientRect();
         pos.current.x = e.clientX - r.left;
@@ -315,10 +406,15 @@ function Hero() {
         gsap.to(maskLayerRef.current, {
           '--mx': pos.current.x + 'px',
           '--my': pos.current.y + 'px',
-          duration: 0.6,
-          ease: 'power3.out',
+          duration: 0.55,
+          ease: EASE.hover,
           overwrite: 'auto'
         });
+
+        const nx = pos.current.x / r.width - 0.5;
+        const ny = pos.current.y / r.height - 0.5;
+        gsap.to(webTL.current, { x: nx * 10, y: ny * 10, duration: 1, ease: EASE.hover, overwrite: 'auto' });
+        gsap.to(webBR.current, { x: nx * -12, y: ny * -12, duration: 1, ease: EASE.hover, overwrite: 'auto' });
       };
       sectionRef.current.addEventListener('mousemove', onMove);
       return () => sectionRef.current.removeEventListener('mousemove', onMove);
@@ -332,61 +428,62 @@ function Hero() {
       ref={sectionRef}
       className="relative min-h-screen w-full overflow-hidden flex items-center bg-paper noise"
     >
-      {/* base layer — developer photo, always fully visible underneath */}
-      <div className="absolute inset-0 pointer-events-none">
+      {/* photo stack — base (developer) + masked cover (superhero), scaled as one unit */}
+      <div id="photo-stack" ref={photoStackRef} className="absolute inset-0 pointer-events-none">
         <img src={DEVELOPER_PHOTO_SRC} alt="Tanmay Lipare" className={HERO_IMAGE_FRAME} />
-      </div>
 
-      {/* superhero layer — covers the frame except a soft-edged hole at the cursor */}
-      <div
-        ref={maskLayerRef}
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          '--mx': '78%',
-          '--my': '50%',
-          '--r': '100px',
-          WebkitMaskImage:
-            'radial-gradient(circle at var(--mx) var(--my), transparent 0px, transparent calc(var(--r) - 55px), rgba(0,0,0,0.5) calc(var(--r) - 15px), black var(--r))',
-          maskImage:
-            'radial-gradient(circle at var(--mx) var(--my), transparent 0px, transparent calc(var(--r) - 55px), rgba(0,0,0,0.5) calc(var(--r) - 15px), black var(--r))',
-          WebkitMaskRepeat: 'no-repeat',
-          maskRepeat: 'no-repeat'
-        }}
-      >
-        <img src={SUPERHERO_PHOTO_SRC} alt="" aria-hidden="true" className={HERO_IMAGE_FRAME} />
-      </div>
-
-      {/* web decorations */}
-      <WebMark ref={webTL} color="#0B0B0C" opacity={0.5} className="absolute top-16 left-0 w-40 md:w-56" />
-      <WebMark ref={webBR} color="#FAFAF8" opacity={0.35} className="absolute bottom-0 right-0 w-48 md:w-72 rotate-180" />
-
-      {/* content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-10 w-full pt-24 md:pt-16">
-        <div ref={eyebrowRef} className="flex items-center gap-2.5 mb-6 font-mono text-xs uppercase tracking-[0.25em] text-red">
-          <SpiderGlyph className="w-4 h-4" color="#A6141E" />
-          Full-Stack Developer — Est. 2016
+        <div
+          ref={maskLayerRef}
+          className="absolute inset-0"
+          style={{
+            '--mx': '78%',
+            '--my': '50%',
+            '--r': '100px',
+            WebkitMaskImage:
+              'radial-gradient(circle at var(--mx) var(--my), transparent 0px, transparent calc(var(--r) - 55px), rgba(0,0,0,0.5) calc(var(--r) - 15px), black var(--r))',
+            maskImage:
+              'radial-gradient(circle at var(--mx) var(--my), transparent 0px, transparent calc(var(--r) - 55px), rgba(0,0,0,0.5) calc(var(--r) - 15px), black var(--r))',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat'
+          }}
+        >
+          <img src={SUPERHERO_PHOTO_SRC} alt="" aria-hidden="true" className={HERO_IMAGE_FRAME} />
         </div>
+      </div>
 
-        <h1 className="font-display font-900 uppercase leading-[0.82] text-[15vw] md:text-[8.2vw] tracking-tight">
-          <span className="block overflow-hidden">
-            <span ref={line1Ref} className="heading-line block">Weaving</span>
-          </span>
-          <span className="block overflow-hidden">
-            <span ref={line2Ref} className="heading-line block text-transparent" style={{ WebkitTextStroke: '1.5px #0B0B0C' }}>Code Into</span>
-          </span>
-          <span className="block overflow-hidden">
-            <span ref={line3Ref} className="heading-line block">Experience</span>
-          </span>
-        </h1>
+      {/* web decorations — kept quiet: low opacity, tiny parallax drift only */}
+      <WebMark ref={webTL} color="#0B0B0C" opacity={0.4} className="absolute top-16 left-0 w-40 md:w-56 pointer-events-none" />
+      <WebMark ref={webBR} color="#FAFAF8" opacity={0.28} className="absolute bottom-0 right-0 w-48 md:w-72 rotate-180 pointer-events-none" />
 
-        <div className="mt-10 md:mt-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
-          <p ref={subRef} className="max-w-md text-stone text-base md:text-lg leading-relaxed">
-            I design and build full-stack products — from the smallest interaction
-            to the system underneath — where every thread connects.
-          </p>
-          <div ref={ctaRef} className="flex flex-wrap gap-4">
-            <MagneticButton href="#work" primary>View Selected Work</MagneticButton>
-            <MagneticButton href="#contact">Say Hello</MagneticButton>
+      {/* content — capped width so the headline never runs into the photo frame */}
+      <div ref={contentRef} className="relative z-10 max-w-7xl mx-auto px-6 md:px-10 w-full pt-24 md:pt-16">
+        <div className="max-w-[92%] sm:max-w-[74%] lg:max-w-[58%]">
+          <div ref={eyebrowRef} className="flex items-center gap-2.5 mb-6 font-mono text-xs uppercase tracking-[0.25em] text-red">
+            <SpiderGlyph className="w-4 h-4" color="#A6141E" />
+            Developer — Est. 2021
+          </div>
+
+          <h1 className="font-display font-900 uppercase leading-[0.82] text-[15vw] sm:text-[11vw] lg:text-[7.4vw] tracking-tight">
+            <span className="block overflow-hidden">
+              <span ref={line1Ref} className="heading-line block">Weaving</span>
+            </span>
+            <span className="block overflow-hidden">
+              <span ref={line2Ref} className="heading-line block text-transparent" style={{ WebkitTextStroke: '1.5px #0B0B0C' }}>Code Into</span>
+            </span>
+            <span className="block overflow-hidden">
+              <span ref={line3Ref} className="heading-line block">Experience</span>
+            </span>
+          </h1>
+
+          <div className="mt-12 md:mt-16 flex flex-col gap-8">
+            <p ref={subRef} className="max-w-md text-stone text-base md:text-lg leading-relaxed">
+              I design and build full-stack products - from the smallest interaction
+              to the system underneath - where every thread connects.
+            </p>
+            <div ref={ctaRef} className="flex flex-wrap gap-4">
+              <MagneticButton href="#work" primary>View Selected Work</MagneticButton>
+              <MagneticButton href="#contact">Say Hello</MagneticButton>
+            </div>
           </div>
         </div>
       </div>
@@ -403,11 +500,11 @@ function Hero() {
 
 /* ----------------------------------------------------------------
    HangingProfile — reusable hanging profile image on a thread.
-   The entrance itself is owned by the PARENT's master timeline
-   (via getGroupEl(), so it can be sequenced alongside everything
-   else in one coordinated ScrollTrigger). This component still
-   owns its own ambient loop — swing + frame shadow pulse — which
-   the parent starts once the whole entrance sequence has settled.
+   The entrance is owned by the PARENT's master timeline (via
+   getGroupEl()), so it sequences inside one coordinated ScrollTrigger.
+   This component owns its own ambient loop — a slow, heavy-feeling
+   pendulum swing and a quiet shadow pulse — started by the parent
+   once the whole entrance has settled.
 ------------------------------------------------------------------ */
 const HangingProfile = React.forwardRef(function HangingProfile(
   { src, alt = 'Profile photo', size = 'clamp(14rem, 30vw, 18rem)', threadClassName = 'h-24 md:h-40' },
@@ -422,18 +519,20 @@ const HangingProfile = React.forwardRef(function HangingProfile(
       // Hidden starting state — parent's timeline animates this element in.
       gsap.set(groupRef.current, { y: -800, opacity: 0, transformOrigin: 'top center' });
       gsap.set(borderRef.current, {
-        boxShadow: '0 10px 30px rgba(0,0,0,0.25), 0 0 0px 0px rgba(166,20,30,0)'
+        boxShadow: '0 10px 26px rgba(0,0,0,0.22), 0 0 0px 0px rgba(166,20,30,0)'
       });
 
       // Registered (not run yet) so tweens created later are still tracked for cleanup.
       self.add('startAmbient', () => {
+        // A real hanging weight on a long thread swings slowly — heavier,
+        // slower motion reads as more physically believable than a fast wobble.
         gsap.to(groupRef.current, {
-          rotation: 2.5, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1,
+          rotation: 2, duration: 3.4, ease: EASE.ambient, yoyo: true, repeat: -1,
           transformOrigin: 'top center'
         });
         gsap.to(borderRef.current, {
-          boxShadow: '0 10px 30px rgba(0,0,0,0.25), 0 0 46px 14px rgba(166,20,30,0.45)',
-          duration: 2.4, ease: 'sine.inOut', yoyo: true, repeat: -1
+          boxShadow: '0 10px 26px rgba(0,0,0,0.22), 0 0 34px 9px rgba(166,20,30,0.32)',
+          duration: 3, ease: EASE.ambient, yoyo: true, repeat: -1
         });
       });
     }, groupRef);
@@ -454,25 +553,28 @@ const HangingProfile = React.forwardRef(function HangingProfile(
         {/* long thin thread, longer on desktop */}
         <div className={`w-px ${threadClassName} bg-gradient-to-b from-ink/0 to-ink/40`} />
 
-        <div className="relative" style={{ width: size, height: size }}>
-          {/* thick circular accent border — also carries the pulsing shadow */}
-          <div ref={borderRef} className="absolute -inset-2 rounded-full border-[6px] border-ink pointer-events-none" />
+        <div className="group relative cursor-target" style={{ width: size, height: size }}>
+          {/* thick circular accent border — pulsing shadow + a subtle hover scale */}
+          <div
+            ref={borderRef}
+            className="absolute -inset-2 rounded-full border-[6px] border-ink pointer-events-none transition-transform duration-300 ease-out group-hover:scale-[1.035]"
+          />
 
-          <div className="group relative w-full h-full rounded-full overflow-hidden">
+          <div className="relative w-full h-full rounded-full overflow-hidden">
             {src ? (
               <img
-                src={DEVELOPER_PHOTO_SRC}
+                src={src}
                 alt={alt}
-                className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 ease-out group-hover:scale-105"
+                className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 ease-out group-hover:scale-[1.035]"
               />
             ) : (
               <React.Fragment>
                 <div
-                  className="absolute inset-0 transition-all duration-700 ease-out grayscale group-hover:grayscale-0 group-hover:scale-105"
+                  className="absolute inset-0 transition-all duration-500 ease-out grayscale group-hover:grayscale-0 group-hover:scale-[1.035]"
                   style={{ background: 'radial-gradient(120% 120% at 30% 20%, #7a7a7a 0%, #2b2b2b 45%, #0b0b0b 100%)' }}
                 />
                 <div
-                  className="absolute inset-0 mix-blend-multiply opacity-0 group-hover:opacity-100 transition-opacity duration-700"
+                  className="absolute inset-0 mix-blend-multiply opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                   style={{ background: 'radial-gradient(120% 120% at 30% 20%, #D11F2C 0%, transparent 60%)' }}
                 />
               </React.Fragment>
@@ -487,7 +589,7 @@ const HangingProfile = React.forwardRef(function HangingProfile(
 /* ----------------------------------------------------------------
    About — suspended thread portrait + web corners + reveals
 ------------------------------------------------------------------ */
-const TECH = ['React', 'Node.js', 'TypeScript', 'PostgreSQL', 'GraphQL', 'AWS', 'Docker', 'Next.js', 'Tailwind', 'GSAP'];
+const TECH = ['Angular', 'TypeScript','Javascript','Python','Dotnet', 'PostgreSQL','Tailwind', 'HTML', 'CSS','RestAPI'] ;
 
 function About() {
   const sectionRef = useRef(null);
@@ -501,10 +603,10 @@ function About() {
 
   /* -----------------------------------------------------------
      One orchestrated ScrollTrigger'd timeline drives the whole
-     entrance in sequence (with slight overlaps for a premium
-     feel rather than a rigid step-by-step demo). Once it fully
-     resolves, every ambient loop — web sway, profile swing,
-     frame shadow pulse, pill float — starts together in one beat.
+     entrance in sequence, with slight overlaps rather than a rigid
+     step-by-step chain. Once it fully resolves, every ambient loop
+     — web sway, profile swing, frame shadow pulse, pill float —
+     starts together in one beat.
   ------------------------------------------------------------ */
   useLayoutEffect(() => {
     const ctx = gsap.context((self) => {
@@ -512,10 +614,10 @@ function About() {
       const hangingEl = hangingRef.current ? hangingRef.current.getGroupEl() : null;
 
       // Responsive-friendly starting values, set synchronously so nothing flashes in.
-      gsap.set(webs, { y: -110, opacity: 0 });
-      gsap.set(eyebrowRef.current, { opacity: 0, x: -48, clipPath: 'inset(0 100% 0 0)' });
-      gsap.set(headingRef.current, { clipPath: 'inset(0 0 100% 0)', y: 56 });
-      gsap.set(paraRefs.current, { opacity: 0, rotateX: -35, y: 24, transformOrigin: 'top center' });
+      gsap.set(webs, { y: -100, opacity: 0 });
+      gsap.set(eyebrowRef.current, { opacity: 0, x: -40, clipPath: 'inset(0 100% 0 0)' });
+      gsap.set(headingRef.current, { clipPath: 'inset(0 0 100% 0)', y: 48 });
+      gsap.set(paraRefs.current, { opacity: 0, rotateX: -18, y: 20, transformOrigin: 'top center' });
       gsap.set(pillsRef.current, { opacity: 0, scale: 0.5 });
 
       // Ambient loops, registered now (so later-created tweens still get cleaned
@@ -523,9 +625,9 @@ function About() {
       const startAmbient = self.add('startAmbient', () => {
         webs.forEach((el, i) => {
           gsap.to(el, {
-            rotation: i === 0 ? 4 : -4,
-            duration: 7 + i * 1.4,
-            ease: 'sine.inOut',
+            rotation: i === 0 ? 2.5 : -2.5,
+            duration: 8 + i * 1.6,
+            ease: EASE.ambient,
             yoyo: true,
             repeat: -1,
             transformOrigin: i === 0 ? '0% 0%' : '100% 0%'
@@ -533,9 +635,9 @@ function About() {
         });
         pillsRef.current.forEach((el, i) => {
           gsap.to(el, {
-            y: -6,
-            duration: 2 + (i % 4) * 0.3,
-            ease: 'sine.inOut',
+            y: -4,
+            duration: 2.2 + (i % 4) * 0.3,
+            ease: EASE.ambient,
             yoyo: true,
             repeat: -1,
             delay: i * 0.12
@@ -546,39 +648,40 @@ function About() {
 
       const tl = gsap.timeline({
         scrollTrigger: { trigger: sectionRef.current, start: 'top 75%' },
-        defaults: { ease: 'power4.out' },
+        defaults: { ease: EASE.reveal },
         onComplete: startAmbient
       });
 
-      // 1. Background webs drop from above, elastic settle.
+      // 1. Background webs drop from above — the one moment allowed a
+      //    physical overshoot, since these are meant to read as falling.
       tl.to(webs, {
-        y: 0, opacity: 0.08, duration: 1.3, ease: 'elastic.out(1, 0.65)', stagger: 0.15
+        y: 0, opacity: 0.08, duration: 1.2, ease: EASE.drop, stagger: 0.15
       })
         // 2. Eyebrow slides in from the left with a clip-path reveal.
         .to(eyebrowRef.current, {
-          opacity: 1, x: 0, clipPath: 'inset(0 0% 0 0)', duration: 0.8, ease: 'power3.out'
-        }, '-=0.7')
+          opacity: 1, x: 0, clipPath: 'inset(0 0% 0 0)', duration: 0.7, ease: 'power3.out'
+        }, '-=0.65')
         // 3. Heading rises from below with a clip-path reveal.
         .to(headingRef.current, {
-          clipPath: 'inset(0 0% 0 0)', y: 0, duration: 1.1, ease: 'power4.out'
-        }, '-=0.45');
+          clipPath: 'inset(0 0% 0 0)', y: 0, duration: 1, ease: EASE.reveal
+        }, '-=0.4');
 
       // 4. Hanging profile image drops from the ceiling, in step with the heading.
       if (hangingEl) {
         tl.to(hangingEl, {
-          y: 0, opacity: 1, duration: 1.7, ease: 'elastic.out(1, 0.5)'
-        }, '-=0.75');
+          y: 0, opacity: 1, duration: 1.5, ease: EASE.drop
+        }, '-=0.7');
       }
 
       tl
-        // 5. Paragraphs reveal individually with rotationX and stagger.
+        // 5. Paragraphs reveal individually with a subtle 3D tilt and stagger.
         .to(paraRefs.current, {
-          opacity: 1, rotateX: 0, y: 0, duration: 0.9, stagger: 0.16, ease: 'power3.out'
-        }, '-=1')
-        // 6. Technology pills scale from 0.5 to 1 with stagger.
+          opacity: 1, rotateX: 0, y: 0, duration: 0.8, stagger: 0.15, ease: 'power3.out'
+        }, '-=0.95')
+        // 6. Technology pills scale in with stagger — a light settle, not a pop.
         .to(pillsRef.current, {
-          opacity: 1, scale: 1, duration: 0.55, stagger: 0.055, ease: 'back.out(2.2)'
-        }, '-=0.5');
+          opacity: 1, scale: 1, duration: 0.5, stagger: 0.05, ease: 'back.out(1.5)'
+        }, '-=0.45');
     }, sectionRef);
     return () => ctx.revert();
   }, []);
@@ -586,11 +689,12 @@ function About() {
   return (
     <section id="about" ref={sectionRef} className="relative py-28 md:py-40 bg-paperAlt overflow-hidden">
       <WebMark ref={webTL} color="#0B0B0C" opacity={0.08} className="absolute -top-4 -left-4 w-56 md:w-80" />
+      <WebMark ref={webTR} color="#0B0B0C" opacity={0.08} className="absolute -top-4 -right-4 w-56 md:w-80 scale-x-[-1]" />
 
-      <div className="max-w-7xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 md:gap-20 items-start relative">
+      <div className="max-w-7xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 md:gap-24 items-start relative z-10">
         {/* left column — suspended portrait */}
         <div className="pt-6 md:pt-2">
-          <HangingProfile ref={hangingRef} alt="Tanmay Lipare" />
+          <HangingProfile ref={hangingRef} src={DEVELOPER_PHOTO_SRC} alt="Tanmay Lipare" />
         </div>
 
         {/* right column — copy */}
@@ -606,14 +710,14 @@ function About() {
 
           <div className="para-3d space-y-5 max-w-xl">
             <p ref={(el) => (paraRefs.current[0] = el)} className="text-stone text-base md:text-lg leading-relaxed">
-              I'm Tanmay — a full-stack developer who treats every product as a
+              I'm Tanmay Lipare — a developer by profession who treats every product as a
               connected system, not a pile of features. Frontend, backend,
               infrastructure: each thread has to hold weight on its own and support
               everything attached to it.
             </p>
             <p ref={(el) => (paraRefs.current[1] = el)} className="text-stone text-base md:text-lg leading-relaxed">
-              Ten years in, across fintech, media, and early-stage startups, I've
-              learned that the best engineering is the kind nobody notices —
+                I've
+              learned that the best engineering is the kind nobody notices -
               it just quietly holds.
             </p>
           </div>
@@ -623,7 +727,9 @@ function About() {
               <span
                 key={t}
                 ref={(el) => (pillsRef.current[i] = el)}
-                className="pill font-mono text-xs uppercase tracking-wider px-4 py-2 border border-ink/15 bg-paper text-ink/80 hover:border-red hover:text-red transition-colors duration-300"
+                onMouseEnter={(e) => gsap.to(e.currentTarget, { scale: 1.06, duration: 0.2, ease: EASE.hover, overwrite: 'auto' })}
+                onMouseLeave={(e) => gsap.to(e.currentTarget, { scale: 1, duration: 0.25, ease: EASE.hover, overwrite: 'auto' })}
+                className="pill cursor-target font-mono text-xs uppercase tracking-wider px-4 py-2 border border-ink/15 bg-paper text-ink/80 transition-colors duration-200 ease-out hover:border-red hover:text-red"
               >
                 {t}
               </span>
@@ -639,9 +745,27 @@ function About() {
    Work — selected projects
 ------------------------------------------------------------------ */
 const PROJECTS = [
-  { name: 'Ledgerline', tag: 'Fintech Platform', desc: 'Real-time ledger reconciliation for multi-currency accounts.', stack: 'React · Node · Postgres' },
-  { name: 'Northwind Studio', tag: 'Creative Agency Site', desc: 'Cinematic marketing site with WebGL transitions.', stack: 'Next.js · GSAP · Three.js' },
-  { name: 'Fieldnote', tag: 'Ops Tooling', desc: 'Offline-first field reporting app for distributed teams.', stack: 'React Native · GraphQL' }
+  { 
+    name: 'GymTracker', 
+    tag: 'Fitness App', 
+    desc: 'A mobile app for tracking workouts and managing fitness goals.', 
+    stack: 'Angular · Dotnet · Postgres',
+    href: 'https://github.com/tanmaylipare-ai/gym_tracking' // Replace with real URL
+  },
+  { 
+    name: 'Job application tracker', 
+    tag: 'Career Tool', 
+    desc: 'A full-stack job application tracking system built with Next.js, featuring a Kanban board interface for managing your job search.', 
+    stack: 'Next.js · Tailwind · MongoDB',
+    href: 'https://github.com/tanmaylipare-ai/job-application-tracker' // Replace with real URL
+  },
+  { 
+    name: 'Rate limiting in ASP.NETCore', 
+    tag: 'Backend', 
+    desc: 'Implementation of rate limiting strategies in ASP.NET Core applications.', 
+    stack: 'C# · ASP.NET Core',
+    href: 'https://github.com/tanmaylipare-ai/dotnet_rate_limiting' // Replace with real URL
+  }
 ];
 
 function Work() {
@@ -651,12 +775,12 @@ function Work() {
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
-      gsap.fromTo(headingRef.current, { opacity: 0, y: 24 }, {
-        opacity: 1, y: 0, duration: 0.9, ease: 'power3.out',
+      gsap.fromTo(headingRef.current, { opacity: 0, y: 20 }, {
+        opacity: 1, y: 0, duration: 0.8, ease: EASE.reveal,
         scrollTrigger: { trigger: headingRef.current, start: 'top 85%' }
       });
-      gsap.fromTo(cardsRef.current, { opacity: 0, y: 60 }, {
-        opacity: 1, y: 0, duration: 0.9, stagger: 0.15, ease: 'power3.out',
+      gsap.fromTo(cardsRef.current, { opacity: 0, y: 48 }, {
+        opacity: 1, y: 0, duration: 0.8, stagger: 0.12, ease: 'power3.out',
         scrollTrigger: { trigger: cardsRef.current[0], start: 'top 88%' }
       });
     }, sectionRef);
@@ -671,20 +795,30 @@ function Work() {
             Selected<br />Work
           </h2>
           <p className="font-mono text-xs uppercase tracking-widest text-stone max-w-xs">
-            A few threads worth pulling on — full case studies available on request.
+            A few threads worth pulling on - full project studies available on request.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-px bg-ink/10">
           {PROJECTS.map((p, i) => (
-            <div
+            <a
               key={p.name}
+              href={p.href}
+              target="_blank"
+              rel="noopener noreferrer"
               ref={(el) => (cardsRef.current[i] = el)}
-              className="group relative bg-paper p-8 md:p-10 min-h-[22rem] flex flex-col justify-between overflow-hidden"
+              onMouseEnter={(e) => gsap.to(e.currentTarget, {
+                y: -5, boxShadow: '0 22px 38px rgba(11,11,12,0.08)', duration: 0.35, ease: EASE.hover, overwrite: 'auto'
+              })}
+              onMouseLeave={(e) => gsap.to(e.currentTarget, {
+                y: 0, boxShadow: '0 0px 0px rgba(11,11,12,0)', duration: 0.35, ease: EASE.hover, overwrite: 'auto'
+              })}
+              style={{ boxShadow: '0 0px 0px rgba(11,11,12,0)' }}
+              className="group relative cursor-target bg-paper p-8 md:p-10 min-h-[22rem] flex flex-col justify-between overflow-hidden block no-underline text-inherit"
             >
               <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                style={{ background: 'radial-gradient(120% 100% at 20% 0%, rgba(166,20,30,0.06) 0%, transparent 60%)' }}
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out"
+                style={{ background: 'radial-gradient(120% 100% at 20% 0%, rgba(166,20,30,0.05) 0%, transparent 60%)' }}
               />
               <div className="relative">
                 <span className="font-mono text-[11px] uppercase tracking-widest text-red">{p.tag}</span>
@@ -693,9 +827,9 @@ function Work() {
               </div>
               <div className="relative flex items-center justify-between pt-8 font-mono text-[11px] uppercase tracking-widest text-ink/60">
                 <span>{p.stack}</span>
-                <span className="inline-block transition-transform duration-300 group-hover:translate-x-1">→</span>
+                <span className="inline-block transition-transform duration-300 ease-out group-hover:translate-x-1">→</span>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       </div>
@@ -713,11 +847,11 @@ function Contact() {
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
-      gsap.fromTo(headingRef.current, { opacity: 0, y: 30 }, {
-        opacity: 1, y: 0, duration: 1, ease: 'power3.out',
+      gsap.fromTo(headingRef.current, { opacity: 0, y: 26 }, {
+        opacity: 1, y: 0, duration: 0.9, ease: EASE.reveal,
         scrollTrigger: { trigger: headingRef.current, start: 'top 85%' }
       });
-      drawWeb(webRef.current, { delay: 0.2, duration: 1.8 });
+      drawWeb(webRef.current, { delay: 0.15, duration: 1.6 });
       ScrollTrigger.create({ trigger: webRef.current, start: 'top 90%', once: true });
     }, sectionRef);
     return () => ctx.revert();
@@ -725,7 +859,7 @@ function Contact() {
 
   return (
     <section id="contact" ref={sectionRef} className="relative bg-ink text-paper py-28 md:py-44 overflow-hidden">
-      <WebMark ref={webRef} color="#FAFAF8" opacity={0.15} className="absolute -bottom-10 -right-10 w-72 md:w-96 rotate-180" />
+      <WebMark ref={webRef} color="#FAFAF8" opacity={0.14} className="absolute -bottom-10 -right-10 w-72 md:w-96 rotate-180" />
       <div className="max-w-7xl mx-auto px-6 md:px-10 relative">
         <div ref={headingRef}>
           <div className="flex items-center gap-2.5 mb-6 font-mono text-xs uppercase tracking-[0.25em] text-red">
@@ -735,17 +869,21 @@ function Contact() {
           <h2 className="font-display font-900 uppercase text-[13vw] md:text-[7vw] leading-[0.85] tracking-tight mb-10">
             Let's build<br />something
           </h2>
-          <a href="mailto:liparetanmay@official@gmail.com" className="inline-block font-serifItalic italic text-2xl md:text-4xl border-b border-paper/30 hover:border-red hover:text-red transition-colors duration-300">
-            liparetanmay@official@gmail.com
+          {/* NOTE: source had a malformed address (two "@" symbols) — fixed here.
+              Double-check this is actually your address before publishing. */}
+          <a href="mailto:liparetanmayofficial@gmail.com" className="underline-hover inline-block font-serifItalic italic text-2xl md:text-4xl border-b border-paper/30 hover:border-transparent hover:text-red transition-colors duration-300 ease-out">
+            liparetanmayofficial@gmail.com
           </a>
         </div>
 
         <div className="mt-24 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pt-8 border-t border-paper/10">
           <span className="font-mono text-xs uppercase tracking-widest text-paper/50">© 2026 Tanmay Lipare</span>
           <div className="flex gap-8 font-mono text-xs uppercase tracking-widest text-paper/60">
-            <a href="#" className="hover:text-red transition-colors">GitHub</a>
-            <a href="#" className="hover:text-red transition-colors">LinkedIn</a>
-            <a href="#" className="hover:text-red transition-colors">Twitter</a>
+            <a href="https://github.com/tanmaylipare-ai" target="_blank"
+              rel="noopener noreferrer" className="underline-hover hover:text-red transition-colors duration-300 ease-out">GitHub</a>
+            <a href="https://www.linkedin.com/in/tanmay-lipare" target="_blank"
+              rel="noopener noreferrer" className="underline-hover hover:text-red transition-colors duration-300 ease-out">LinkedIn</a>
+            <a href="mailto:liparetanmayofficial@gmail.com" className="underline-hover hover:text-red transition-colors duration-300 ease-out">Mail</a>
           </div>
         </div>
       </div>
