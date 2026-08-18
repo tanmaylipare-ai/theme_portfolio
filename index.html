@@ -250,11 +250,28 @@ function MagneticButton({ children, href = '#', primary = false }) {
 }
 
 /* ----------------------------------------------------------------
-   Hero — mouse-following reveal mask between two duotone layers
+   Hero — mouse-following punch-hole reveal between two real photos.
+   Base layer (always visible): developer photo.
+   Top layer (covers everything): superhero photo, masked with a
+   radial-gradient "hole" that follows the cursor. Both images share
+   one geometry (HERO_IMAGE_FRAME) so they stay perfectly aligned —
+   the frame is now a proportioned box, not a full-bleed fill.
 ------------------------------------------------------------------ */
+
+// Swap these for your actual assets.
+const DEVELOPER_PHOTO_SRC = '/assets/developer-photo.jpeg';
+const SUPERHERO_PHOTO_SRC = '/assets/superhero-photo.jpg';
+
+// Shared frame geometry — both images MUST use the exact same classes,
+// or the mask on the top layer won't line up with the photo underneath.
+const HERO_IMAGE_FRAME =
+  'absolute top-1/2 right-[2%] md:right-[3%] -translate-y-1/2 ' +
+  'w-[72%] sm:w-[58%] md:w-[38%] lg:w-[32%] ' +
+  'aspect-[4/5] object-cover rounded-sm shadow-2xl';
+
 function Hero() {
   const sectionRef = useRef(null);
-  const colorLayerRef = useRef(null);
+  const maskLayerRef = useRef(null); // superhero layer, holds the punch-hole mask
   const line1Ref = useRef(null);
   const line2Ref = useRef(null);
   const line3Ref = useRef(null);
@@ -275,7 +292,11 @@ function Hero() {
           { clipPath: 'inset(0 0 0% 0)', y: 0, duration: 1.1, stagger: 0.12 }, 0.25)
         .fromTo(subRef.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8 }, '-=0.5')
         .fromTo(ctaRef.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8 }, '-=0.55')
-        .fromTo(colorLayerRef.current, { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 1.4 }, 0.2)
+        // Superhero layer fades/settles into place over the developer photo.
+        .fromTo(maskLayerRef.current, { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 1.4 }, 0.2)
+        // The reveal hole itself grows in smoothly, radius 0 → full — this is
+        // the "smooth reveal animation" piece, separate from the cursor-follow.
+        .fromTo(maskLayerRef.current, { '--r': '0px' }, { '--r': '100px', duration: 1.3, ease: 'expo.out' }, '-=0.9')
         .fromTo(scrollCueRef.current, { opacity: 0 }, { opacity: 1, duration: 0.8 }, '-=0.3');
 
       drawWeb(webTL.current, { delay: 0.6, duration: 1.8 });
@@ -285,11 +306,13 @@ function Hero() {
         y: 10, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1
       });
 
+      // Cursor only repositions the hole (--mx/--my); the radius (--r) stays
+      // at whatever the entrance settled it to.
       const onMove = (e) => {
         const r = sectionRef.current.getBoundingClientRect();
         pos.current.x = e.clientX - r.left;
         pos.current.y = e.clientY - r.top;
-        gsap.to(colorLayerRef.current, {
+        gsap.to(maskLayerRef.current, {
           '--mx': pos.current.x + 'px',
           '--my': pos.current.y + 'px',
           duration: 0.6,
@@ -309,36 +332,28 @@ function Hero() {
       ref={sectionRef}
       className="relative min-h-screen w-full overflow-hidden flex items-center bg-paper noise"
     >
-      {/* grayscale base layer */}
+      {/* base layer — developer photo, always fully visible underneath */}
       <div className="absolute inset-0 pointer-events-none">
-        <div
-          className="absolute right-0 top-0 h-full w-full md:w-[62%]"
-          style={{
-            background:
-              'radial-gradient(120% 100% at 80% 20%, #3a3a3a 0%, #101010 55%, #050505 100%)',
-            filter: 'grayscale(1) contrast(1.1)'
-          }}
-        />
+        <img src={DEVELOPER_PHOTO_SRC} alt="Tanmay Lipare" className={HERO_IMAGE_FRAME} />
       </div>
 
-      {/* color reveal layer, clipped to a circle that follows the cursor */}
+      {/* superhero layer — covers the frame except a soft-edged hole at the cursor */}
       <div
-        ref={colorLayerRef}
+        ref={maskLayerRef}
         className="absolute inset-0 pointer-events-none"
         style={{
-          '--mx': '70%',
-          '--my': '35%',
-          clipPath: 'circle(150px at var(--mx) var(--my))',
-          WebkitClipPath: 'circle(150px at var(--mx) var(--my))'
+          '--mx': '78%',
+          '--my': '50%',
+          '--r': '100px',
+          WebkitMaskImage:
+            'radial-gradient(circle at var(--mx) var(--my), transparent 0px, transparent calc(var(--r) - 55px), rgba(0,0,0,0.5) calc(var(--r) - 15px), black var(--r))',
+          maskImage:
+            'radial-gradient(circle at var(--mx) var(--my), transparent 0px, transparent calc(var(--r) - 55px), rgba(0,0,0,0.5) calc(var(--r) - 15px), black var(--r))',
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat'
         }}
       >
-        <div
-          className="absolute right-0 top-0 h-full w-full md:w-[62%]"
-          style={{
-            background:
-              'radial-gradient(120% 100% at 80% 20%, #D11F2C 0%, #6E0D14 55%, #1a0304 100%)'
-          }}
-        />
+        <img src={SUPERHERO_PHOTO_SRC} alt="" aria-hidden="true" className={HERO_IMAGE_FRAME} />
       </div>
 
       {/* web decorations */}
@@ -446,7 +461,7 @@ const HangingProfile = React.forwardRef(function HangingProfile(
           <div className="group relative w-full h-full rounded-full overflow-hidden">
             {src ? (
               <img
-                src={src}
+                src={DEVELOPER_PHOTO_SRC}
                 alt={alt}
                 className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 ease-out group-hover:scale-105"
               />
@@ -571,7 +586,6 @@ function About() {
   return (
     <section id="about" ref={sectionRef} className="relative py-28 md:py-40 bg-paperAlt overflow-hidden">
       <WebMark ref={webTL} color="#0B0B0C" opacity={0.08} className="absolute -top-4 -left-4 w-56 md:w-80" />
-      <WebMark ref={webTR} color="#0B0B0C" opacity={0.08} className="absolute -top-4 -right-4 w-56 md:w-80 scale-x-[-1]" />
 
       <div className="max-w-7xl mx-auto px-6 md:px-10 grid md:grid-cols-2 gap-16 md:gap-20 items-start relative">
         {/* left column — suspended portrait */}
